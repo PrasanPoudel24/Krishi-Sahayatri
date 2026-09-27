@@ -4,13 +4,15 @@ import { tokens } from "../../styles/tokens";
 import { validateUsername, validatePassword } from "../../utils/validators";
 import Field from "../shared/Field";
 import PrimaryButton from "../shared/PrimaryButton";
+import { loginUser } from "../../api/client";
 
-export default function LoginView({ setView, onLogin }) {
+export default function LoginView({ setView, onLogin, authError, setAuthError }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   const checkField = (field, value) => {
     const msg = field === "username" ? validateUsername(value) : validatePassword(value);
@@ -18,12 +20,24 @@ export default function LoginView({ setView, onLogin }) {
     return msg;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const uErr = validateUsername(username);
     const pErr = validatePassword(password);
     setErrors({ username: uErr, password: pErr });
     setTouched({ username: true, password: true });
-    if (!uErr && !pErr) onLogin({ username });
+
+    if (uErr || pErr) return;
+
+    try {
+      setSubmitting(true);
+      setAuthError("");
+      const data = await loginUser({ username, password });
+      onLogin(data);
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -34,6 +48,11 @@ export default function LoginView({ setView, onLogin }) {
       <div style={{ fontSize: 13.5, color: tokens.muted, marginBottom: 30 }}>
         Sign in to your Kishan Sahayatri dashboard.
       </div>
+      {authError && (
+        <div style={{ marginBottom: 12, background: "rgba(255,96,96,0.1)", border: "1px solid rgba(255,96,96,0.35)", borderRadius: 8, padding: "8px 10px", color: "#ffb3b3", fontSize: 12.5 }}>
+          {authError}
+        </div>
+      )}
       <Field
         label="Username" icon={AtSign} value={username}
         onChange={(e) => { setUsername(e.target.value); if (touched.username) checkField("username", e.target.value); }}
@@ -56,7 +75,7 @@ export default function LoginView({ setView, onLogin }) {
           Forgot password?
         </button>
       </div>
-      <PrimaryButton onClick={submit}>Sign in <ChevronRight size={16} /></PrimaryButton>
+      <PrimaryButton onClick={submit} disabled={submitting}>{submitting ? "Signing in..." : "Sign in"} <ChevronRight size={16} /></PrimaryButton>
       <div style={{ textAlign: "center", marginTop: 22, fontSize: 13, color: tokens.muted }}>
         New here?{" "}
         <button onClick={() => setView("signup")} style={{ background: "none", border: "none", color: tokens.goldText, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>

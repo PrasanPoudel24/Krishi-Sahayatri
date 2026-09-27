@@ -4,12 +4,14 @@ import { tokens } from "../../styles/tokens";
 import { validateUsername, validateEmail, validatePassword } from "../../utils/validators";
 import Field from "../shared/Field";
 import PrimaryButton from "../shared/PrimaryButton";
+import { registerUser } from "../../api/client";
 
-export default function SignupView({ setView }) {
+export default function SignupView({ setView, onSuccess, authError, setAuthError }) {
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const validators = {
     name: (v) => (!v ? "Enter your full name" : ""),
@@ -24,12 +26,25 @@ export default function SignupView({ setView }) {
     return msg;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const e = {};
     Object.keys(validators).forEach((f) => { e[f] = validators[f](form[f]); });
     setErrors(e);
     setTouched({ name: true, username: true, email: true, password: true });
-    if (Object.values(e).every((m) => !m)) setDone(true);
+
+    if (Object.values(e).some((m) => !!m)) return;
+
+    try {
+      setSubmitting(true);
+      setAuthError("");
+      const data = await registerUser(form);
+      onSuccess(data);
+      setDone(true);
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (done) {
@@ -55,6 +70,11 @@ export default function SignupView({ setView }) {
       <div style={{ fontSize: 13.5, color: tokens.muted, marginBottom: 30 }}>
         Start getting crop, yield and fertilizer predictions.
       </div>
+      {authError && (
+        <div style={{ marginBottom: 12, background: "rgba(255,96,96,0.1)", border: "1px solid rgba(255,96,96,0.35)", borderRadius: 8, padding: "8px 10px", color: "#ffb3b3", fontSize: 12.5 }}>
+          {authError}
+        </div>
+      )}
       <Field
         label="Full name" icon={User} value={form.name}
         onChange={(e) => { setForm({ ...form, name: e.target.value }); if (touched.name) checkField("name", e.target.value); }}
@@ -82,7 +102,7 @@ export default function SignupView({ setView }) {
         hint="Needs an uppercase letter, a number and a special character"
       />
       <div style={{ marginTop: 6 }}>
-        <PrimaryButton onClick={submit}>Create account <ChevronRight size={16} /></PrimaryButton>
+        <PrimaryButton onClick={submit} disabled={submitting}>{submitting ? "Creating..." : "Create account"} <ChevronRight size={16} /></PrimaryButton>
       </div>
       <div style={{ textAlign: "center", marginTop: 22, fontSize: 13, color: tokens.muted }}>
         Already have an account?{" "}

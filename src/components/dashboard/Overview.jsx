@@ -1,27 +1,89 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { LayoutDashboard, TrendingUp, CloudRain, Droplets, Sprout, FlaskConical } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell
 } from "recharts";
 import { tokens } from "../../styles/tokens";
-import { yieldTrend, cropDist, recentPredictions } from "../../data/mockData";
+import { yieldTrend, cropDist } from "../../data/mockData";
 import StatCard from "./StatCard";
 
-export default function Overview() {
+export default function Overview({ userProfile, history = [] }) {
+  const predictionCount = userProfile?.predictionCount ?? history.length ?? 0;
+
+  const recentPredictions = useMemo(() => {
+    if (!history.length) {
+      return [
+        { id: 1, type: "Crop", input: "N:90 P:42 K:43", result: "Rice", conf: 94, time: "Just now" },
+        { id: 2, type: "Yield", input: "Nepal · Maize", result: "3.8 t/ha", conf: 88, time: "Recently" },
+      ];
+    }
+
+    return history.slice(0, 4).map((item, index) => ({
+      id: item._id || index,
+      type: item.type === "crop" ? "Crop" : "Yield",
+      input: item.type === "crop"
+        ? `N:${item.input.N} P:${item.input.P} K:${item.input.K}`
+        : `${item.input.Area} · ${item.input.Item}`,
+      result: item.type === "crop"
+        ? item.result?.recommended_crop || "Crop"
+        : `${item.result?.predicted_yield_kg_per_ha ?? 0} kg/ha`,
+      conf: item.type === "crop"
+        ? Math.round((item.result?.confidence ?? 0) * 100)
+        : 88,
+      time: new Date(item.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    }));
+  }, [history]);
+
+  const chartData = useMemo(() => {
+    if (!history.length) return yieldTrend;
+
+    const grouped = history.slice(0, 6).reverse().map((item, index) => ({
+      m: `P${index + 1}`,
+      yield: item.type === "yield" ? Number(item.result?.predicted_yield_kg_per_ha ?? 0) / 1000 : 2.5 + index * 0.4,
+    }));
+
+    return grouped.length ? grouped : yieldTrend;
+  }, [history]);
+
+  const cropDistribution = useMemo(() => {
+    const counts = {};
+    history.forEach((item) => {
+      if (item.type === "crop" && item.result?.recommended_crop) {
+        counts[item.result.recommended_crop] = (counts[item.result.recommended_crop] || 0) + 1;
+      }
+    });
+
+    if (!Object.keys(counts).length) return cropDist;
+
+    return Object.entries(counts).map(([name, value], index) => ({
+      name,
+      value,
+      color: [tokens.gold, tokens.sage, "#7C97C2", tokens.rust][index % 4],
+    }));
+  }, [history]);
+
+  const latestYield = history.filter((item) => item.type === "yield").slice(0, 1)[0];
+
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
-        <StatCard label="Predictions run" value="1,284" delta="12% this month" up icon={LayoutDashboard} />
-        <StatCard label="Avg yield forecast" value="3.6 t/ha" delta="0.4 t/ha" up icon={TrendingUp} />
+        <StatCard label="Predictions run" value={String(predictionCount)} delta="Live count" up icon={LayoutDashboard} />
+        <StatCard
+          label="Avg yield forecast"
+          value={latestYield ? `${Number(latestYield.result?.predicted_yield_kg_per_ha ?? 0).toFixed(1)} kg/ha` : "3.6 t/ha"}
+          delta={latestYield ? "Latest model" : "Demo baseline"}
+          up
+          icon={TrendingUp}
+        />
         <StatCard label="Rainfall (7d)" value="42 mm" delta="8mm below normal" up={false} icon={CloudRain} />
         <StatCard label="Soil moisture" value="61%" delta="steady" up icon={Droplets} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 14, marginBottom: 14 }}>
         <div style={{ background: tokens.surface, border: `1px solid ${tokens.line}`, borderRadius: 14, padding: "20px 22px" }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: tokens.cream, marginBottom: 16 }}>Yield trend (t/ha)</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: tokens.cream, marginBottom: 16 }}>Yield trend (kg/ha)</div>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={yieldTrend}>
+            <LineChart data={chartData}>
               <CartesianGrid stroke={tokens.lineSoft} vertical={false} />
               <XAxis dataKey="m" tick={{ fill: tokens.muted, fontSize: 11 }} axisLine={{ stroke: tokens.line }} tickLine={false} />
               <YAxis tick={{ fill: tokens.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -34,14 +96,14 @@ export default function Overview() {
           <div style={{ fontSize: 13.5, fontWeight: 600, color: tokens.cream, marginBottom: 16 }}>Crop distribution</div>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
-              <Pie data={cropDist} dataKey="value" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={3}>
-                {cropDist.map((c, i) => <Cell key={i} fill={c.color} stroke={tokens.surface} strokeWidth={2} />)}
+              <Pie data={cropDistribution} dataKey="value" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={3}>
+                {cropDistribution.map((c, i) => <Cell key={i} fill={c.color} stroke={tokens.surface} strokeWidth={2} />)}
               </Pie>
               <Tooltip contentStyle={{ background: tokens.surfaceRaised, border: `1px solid ${tokens.line}`, borderRadius: 8, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 6 }}>
-            {cropDist.map((c, i) => (
+            {cropDistribution.map((c, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: tokens.creamDim }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: c.color }} /> {c.name}
               </div>

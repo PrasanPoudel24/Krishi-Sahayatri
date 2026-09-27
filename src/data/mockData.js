@@ -47,8 +47,9 @@ export const PREDICT_CONFIG = {
     title: "Yield prediction",
     desc: "Regression model on crop, climate and input-use features.",
     fields: [
-      ["Crop name", "Maize"], ["Average rainfall (mm)", "180"],
-      ["Pesticides used (kg/ha)", "1.4"], ["Temperature (°C)", "24"],
+      ["Area", "Nepal"], ["Item", "Maize"],
+      ["Average rainfall (mm)", "180"], ["Pesticides used (kg/ha)", "1.4"],
+      ["Temperature (°C)", "24"],
     ],
     resultLabel: "Estimated yield", resultValue: "3.8 t/ha", conf: 88,
   },
